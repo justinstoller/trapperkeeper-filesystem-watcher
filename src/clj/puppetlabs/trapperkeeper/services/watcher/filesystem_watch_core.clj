@@ -112,5 +112,6 @@
           (shutdown-on-error #(doseq [callback callbacks]
                                (callback events)))
           (watch-new-directories! events watcher)
-          (.reset watch-key))))))
+          (.reset watch-key)
+          (java.lang.Thread/sleep (long 1000)))))))
 
