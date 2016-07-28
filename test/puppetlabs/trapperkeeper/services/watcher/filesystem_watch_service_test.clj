@@ -3,6 +3,7 @@
             [clojure.set :as set]
             [schema.test :as schema-test]
             [me.raynes.fs :as fs]
+            [clojure.java.io :as io]
             [puppetlabs.trapperkeeper.services.protocols.filesystem-watch-service :refer :all]
             [puppetlabs.trapperkeeper.services.watcher.filesystem-watch-service :refer [filesystem-watch-service]]
             [puppetlabs.trapperkeeper.services.scheduler.scheduler-service :refer [scheduler-service]]
@@ -10,7 +11,9 @@
             [puppetlabs.trapperkeeper.testutils.logging :refer [with-test-logging]]
             [puppetlabs.trapperkeeper.core :as tk]
             [puppetlabs.trapperkeeper.app :as tk-app]
-            [puppetlabs.trapperkeeper.internal :as tk-internal]))
+            [puppetlabs.trapperkeeper.internal :as tk-internal])
+  (:import (java.nio.file StandardWatchEventKinds Path WatchEvent FileSystems ClosedWatchServiceException)
+           (com.puppetlabs DirWatchUtils)))
 
 (use-fixtures :once schema-test/validate-schemas)
 
@@ -54,6 +57,32 @@
 (defn watch!
   [service root callback]
   (watch!* (create-watcher service) root callback))
+
+(deftest ^:integration reproduce-take-watch-key-mismatch
+  (let [go (atom true) watcher (.newWatchService (FileSystems/getDefault))
+       outer (fs/temp-dir "outer")
+       _ (prn (format "Created outer directory at %s" outer))
+       inner (io/file outer "inner")
+       a-key (.register (.toPath outer) watcher (into-array [StandardWatchEventKinds/ENTRY_CREATE]))
+       _ (prn (format "Registered to watch %s" (.watchable a-key)))
+       events-someday (future (while @go
+                                (let [watch-key (.take watcher)
+                                      events (.pollEvents watch-key)]
+                                  (doseq [e events]
+                                    (clojure.pprint/pprint {:count (.count e)
+                                                            :kind (.name (.kind e))
+                                                            :path (.toString
+                                                                    (.resolve
+                                                                      (.watchable watch-key)
+                                                                      (.context e)))})))))
+       _ (fs/mkdirs inner)
+       _ (prn (format "Created inner directory at %s" inner))
+       f (io/file inner "file")
+       _ (fs/touch f)
+       _ (prn (format "Created file at %s" f))]
+    (java.lang.Thread/sleep (long 5000))
+    (reset! go false)
+    @events-someday))
 
 (deftest ^:integration single-path-test
   (let [root (fs/temp-dir "single-path-test")
