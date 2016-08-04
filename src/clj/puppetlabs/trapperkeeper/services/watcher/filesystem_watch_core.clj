@@ -90,40 +90,40 @@
   [watch-key]
   (map #(clojurize % (.watchable watch-key)) (vec (.pollEvents watch-key))))
 
-(schema/defn retrieve-events
-  :- [Event]
-  "Blocks until an event the watcher is concerned with has occured.
-  Returns the native WatchKey and WatchEvents"
+(schema/defn retrieve-events :- [Event]
+  "Blocks until an event the watcher is concerned with has occured. Will then
+  poll for a new event, watiting at least `window-min` for a new event to
+  occur. Will continue polling for as long as there are new events that occur
+  within `window-min`, or the `window-max` time limit has been exceeded.
+  Returns all events processed into a clojure representation (see clojurize)"
   [watcher :- (schema/protocol Watcher)]
   (let [watch-key (.take (:watch-service watcher))
         events (get-events watch-key)
         time-limit (+ (System/currentTimeMillis) window-max)]
     (watch-new-directories! events watcher)
     (.reset watch-key)
-    (let [final-events (loop [e events]
-                         (if-let [waiting-key (.poll (:watch-service watcher) window-min window-units)]
-                           (let [waiting-events (get-events waiting-key)]
-                             (watch-new-directories! waiting-events watcher)
-                             (.reset waiting-key)
-                             (if (< (System/currentTimeMillis) time-limit)
-                               (recur (into e waiting-events))
-                               (into e waiting-events)))
-                             e))]
-      final-events)))
+    (loop [e events]
+      (if-let [waiting-key (.poll (:watch-service watcher) window-min window-units)]
+        (let [waiting-events (get-events waiting-key)]
+          (watch-new-directories! waiting-events watcher)
+          (.reset waiting-key)
+          (if (< (System/currentTimeMillis) time-limit)
+            (recur (into e waiting-events))
+            (into e waiting-events)))
+        e))))
 
 (schema/defn process-events!
   "Process for side-effects any events that occured for watcher's watch-key"
   [watcher :- (schema/protocol Watcher)
-   events :- [Event]
-   shutdown-fn :- IFn]
+   events :- [Event]]
   (let [callbacks @(:callbacks watcher)]
     (log/info (trs "Got {0} event(s) across path(s) {1}"
                    (count events) (map #(:path %) events)))
     (log/debugf "%s\n%s"
                 (trs "Events:")
                 (pprint-events events))
-    (shutdown-fn #(doseq [callback callbacks]
-                   (callback events)))))
+    (doseq [callback callbacks]
+      (callback events))))
 
 (schema/defn watch!
   "Creates a future and processes events for the passed in watcher.
@@ -132,14 +132,12 @@
    shutdown-fn :- IFn]
   (future
     (let [stopped? (atom false)]
-      (while (not @stopped?)
-        (try
-          (let [events (retrieve-events watcher)]
-            (when-not (empty? events)
-              (process-events! watcher events shutdown-fn)))
-         (catch ClosedWatchServiceException e
-           (reset! stopped? true)
-           (log/info (trs "Closing watcher {0}" watcher)))
-         (catch Exception e
-           (log/error e)))))))
+      (shutdown-fn #(while (not @stopped?)
+                     (try
+                       (let [events (retrieve-events watcher)]
+                         (when-not (empty? events)
+                           (process-events! watcher events)))
+                      (catch ClosedWatchServiceException e
+                        (reset! stopped? true)
+                        (log/info (trs "Closing watcher {0}" watcher)))))))))
 

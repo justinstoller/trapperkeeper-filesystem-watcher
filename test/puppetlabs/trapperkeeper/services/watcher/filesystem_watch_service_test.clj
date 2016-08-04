@@ -421,5 +421,5 @@
           callback (make-callback actual)]
       (testing "overflow events are handled normally"
         (add-callback! watcher callback)
-        (watch-core/process-events! watcher events (fn [func] (func)))
+        (watch-core/process-events! watcher events)
         (is (= expected (wait-for-events actual expected)))))))
