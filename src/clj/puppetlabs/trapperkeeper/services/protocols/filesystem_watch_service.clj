@@ -1,14 +1,21 @@
 (ns puppetlabs.trapperkeeper.services.protocols.filesystem-watch-service
   (:require [schema.core :as schema])
-  (:import (java.io File)))
+  (:import (java.io File)
+           (java.nio.file Path)))
 
 (def Event
   "Schema for an event on a file watched by this service."
   (schema/if #(= (:type %) :unknown)
     {:type (schema/eq :unknown)
-     :path (schema/pred nil?)}
+     :item (schema/pred nil?)
+     :parent Path
+     :path (schema/pred nil?)
+     :count schema/Int}
     {:type (schema/enum :create :modify :delete)
-     :path File}))
+     :item Path
+     :parent Path
+     :path File
+     :count schema/Int}))
 
 (defprotocol Watcher
   (add-watch-dir! [this dir options]
