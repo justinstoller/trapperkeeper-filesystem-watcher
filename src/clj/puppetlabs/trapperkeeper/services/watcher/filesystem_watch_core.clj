@@ -121,8 +121,8 @@
             (watch-new-directories! waiting-events watcher)
             (.reset waiting-key)
             (if (< (System/currentTimeMillis) time-limit)
-              (recur (into events' waiting-events))
-              (into events' waiting-events)))
+              (recur (concat events' waiting-events))
+              (concat events' waiting-events)))
           events'))
       events)))
 
