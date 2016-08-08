@@ -446,26 +446,16 @@
 ;; Here we create a stub object that implements the WatchEvent interface as
 ;; the concrete class is a private inner class. See:
 ;; https://github.com/openjdk-mirror/jdk7u-jdk/blob/f4d80957e89a19a29bb9f9807d2a28351ed7f7df/src/share/classes/sun/nio/fs/AbstractWatchKey.java#L190-L222
-(def overflow-event
-  (reify
-    java.nio.file.WatchEvent
-    (kind [this] java.nio.file.StandardWatchEventKinds/OVERFLOW)
-    (count [this] 1)
-    (context [this] nil)))
-
-(deftest process-overflows
-  (testing "process-events!"
-    (let [watch-path (.toPath (fs/temp-dir "process-overflows"))
-          watcher (watch-core/create-watcher)
-          watch-key (.register
-                      watch-path
-                      (:watch-service watcher)
-                      (into-array [java.nio.file.StandardWatchEventKinds/ENTRY_CREATE]))
-          events [(watch-core/clojurize overflow-event watch-path)]
-          actual (atom [])
-          expected #{{:type :unknown :path nil}}
-          callback (make-callback actual)]
+;; We test only the OVERFLOW event because it is special case and will not b
+;; triggered in the normal integration tests above.
+(deftest clojurize-overflows
+  (testing "clojurize"
+    (let [watch-path (.toPath (fs/temp-dir "clojurize-overflows"))
+          overflow-event (reify
+                          java.nio.file.WatchEvent
+                          (kind [this] java.nio.file.StandardWatchEventKinds/OVERFLOW)
+                          (count [this] 1)
+                          (context [this] nil))
+          expected {:type :unknown :count 1 :watched-path (str watch-path)}]
       (testing "overflow events are handled normally"
-        (add-callback! watcher callback)
-        (watch-core/process-events! watcher events)
-        (is (= expected (wait-for-events actual expected)))))))
+        (is (= expected (update (watch-core/clojurize overflow-event watch-path) :watched-path str)))))))
