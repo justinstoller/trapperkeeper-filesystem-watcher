@@ -48,20 +48,10 @@
        :changed-path (.toFile (.context event))
        :full-path (.. watched-path (resolve (.context event)) (toFile))})))
 
-(schema/defn format-for-debugging
-  [{:keys [changed-path count type]} :- Event]
-  {:context changed-path
-   :count count
-   :kind type})
-
 (schema/defn format-for-consumers
   [{:keys [full-path type]} :- Event]
   {:path full-path
    :type type})
-
-(schema/defn format-for-users
-  [event :- Event]
-  (update (format-for-consumers event) :path str))
 
 (defn validate-watch-options!
   [options]
@@ -137,14 +127,9 @@
     (doseq [[dir events'] events-by-dir]
       (log/info (trs "Got {0} event(s) in directory {1}"
                    (count events') dir)))
-    (log/debugf "%s\n%s"
-                (trs "Events:")
-                (ks/pprint-to-string
-                  (map format-for-users events)))
     (log/tracef "%s\n%s"
-                (trs "orig-events:")
-                (ks/pprint-to-string
-                  (map format-for-debugging events)))
+                (trs "Events:")
+                (ks/pprint-to-string events))
     (doseq [callback callbacks]
       (callback (map format-for-consumers events)))))
 
