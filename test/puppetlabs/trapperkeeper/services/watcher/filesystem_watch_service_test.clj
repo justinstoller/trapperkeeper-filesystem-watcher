@@ -409,10 +409,11 @@
           svc (tk-app/get-service app :FilesystemWatchService)
           event-cadence (quot watch-core/window-min 2)]
       ;; We trigger half the number of events that could independently occur
-      ;; without exceeding the window-max, we trigger them at half the wait
-      ;; of window-min to ensure they will all be caught even if the host
-      ;; running the tests is slow. This requires that window-max be at least
-      ;; twice the duration as window-min.
+      ;; without exceeding the window-max, given the fixed event-cadence
+      ;; set above, we set the event-cadence to half of window-min to increase
+      ;; the likelihood that they will be caught regardless of test runner
+      ;; speed. This requires that window-max be at least four times the
+      ;; duration of window-min.
       (testing "multiple events trigger one callback when within `window-min` and `window-max`"
         (let [test-dir (fs/file root-dir "window-min")
               event-nums (quot (quot watch-core/window-max watch-core/window-min) 2)
@@ -435,14 +436,16 @@
               event-nums (* (quot watch-core/window-max watch-core/window-min) 4)
               files (map #(fs/file test-dir (str % ".txt")) (range 0 event-nums))
               expected-events (set (map (fn [f] {:full-path f :type :create}) files))]
-          (is (> event-nums 2))
+          (is (>= event-nums 4))
           (is (fs/mkdirs test-dir))
           (watch! svc test-dir callback)
           (reset! actual-events [])
           (reset! actual-calls 0)
           (doseq [f files] (fs/touch f) (Thread/sleep event-cadence))
           (is (= expected-events (wait-for-events actual-events expected-events)))
-          (is (>= @actual-calls 2)))))))
+          (is (>= @actual-calls 2))
+          (is (<= @actual-calls 4)
+              "System speed is slower than expected to reliably run this test"))))))
 
 ;; Here we create a stub object that implements the WatchEvent interface as
 ;; the concrete class is a private inner class. See:
