@@ -98,7 +98,7 @@
                                           (filter dir-create?)
                                           (map #(.toPath (:full-path %)))))))
 
-(schema/defn get-event-maps-from-key :- [Event]
+(schema/defn watch-key->events :- [Event]
   [watch-key :- WatchKey]
   (let [events (.pollEvents watch-key)]
     (map #(clojurize % (.watchable watch-key)) events)))
@@ -110,14 +110,14 @@
   within `window-min`, or the `window-max` time limit has been exceeded."
   [watcher :- (schema/protocol Watcher)]
   (let [watch-key (.take (:watch-service watcher))
-        events (get-event-maps-from-key watch-key)
+        events (watch-key->events watch-key)
         time-limit (+ (System/currentTimeMillis) window-max)]
     (watch-new-directories! events watcher)
     (.reset watch-key)
     (if-not (empty? events)
       (loop [events' events]
         (if-let [waiting-key (.poll (:watch-service watcher) window-min window-units)]
-          (let [waiting-events (get-event-maps-from-key waiting-key)]
+          (let [waiting-events (watch-key->events waiting-key)]
             (watch-new-directories! waiting-events watcher)
             (.reset waiting-key)
             (if (< (System/currentTimeMillis) time-limit)
