@@ -37,15 +37,16 @@
   [event :- WatchEvent
    watched-path :- Path]
   (let [kind (get event-type-mappings (.kind event))
-        changed-path (when-not (= :unknown kind)
-                       (.context event))
-        full-path (when-not (= :unknown kind)
-                    (-> watched-path (.resolve changed-path) (.toFile)))]
-    {:type kind
-     :count (.count event)
-     :watched-path (.toFile watched-path)
-     :changed-path (when changed-path (.toFile changed-path))
-     :full-path full-path}))
+        count (.count event)]
+    (if (= :unknown kind)
+      {:type kind
+       :count count
+       :watched-path (.toFile watched-path)}
+      {:type kind
+       :count count
+       :watched-path (.toFile watched-path)
+       :changed-path (.toFile (.context event))
+       :full-path (.. watched-path (resolve (.context event)) (toFile))})))
 
 (schema/defn format-for-debugging
   [{:keys [changed-path count type]} :- Event]
