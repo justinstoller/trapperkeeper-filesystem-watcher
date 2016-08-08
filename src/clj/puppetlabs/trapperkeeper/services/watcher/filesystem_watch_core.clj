@@ -112,19 +112,18 @@
   (let [watch-key (.take (:watch-service watcher))
         events (get-event-maps-from-key watch-key)
         time-limit (+ (System/currentTimeMillis) window-max)]
+    (watch-new-directories! events watcher)
     (.reset watch-key)
     (if-not (empty? events)
-      (do
-        (watch-new-directories! events watcher)
-        (loop [events' events]
-          (if-let [waiting-key (.poll (:watch-service watcher) window-min window-units)]
-            (let [waiting-events (get-event-maps-from-key waiting-key)]
-              (watch-new-directories! waiting-events watcher)
-              (.reset waiting-key)
-              (if (< (System/currentTimeMillis) time-limit)
-                (recur (into events' waiting-events))
-                (into events' waiting-events)))
-            events')))
+      (loop [events' events]
+        (if-let [waiting-key (.poll (:watch-service watcher) window-min window-units)]
+          (let [waiting-events (get-event-maps-from-key waiting-key)]
+            (watch-new-directories! waiting-events watcher)
+            (.reset waiting-key)
+            (if (< (System/currentTimeMillis) time-limit)
+              (recur (into events' waiting-events))
+              (into events' waiting-events)))
+          events'))
       events)))
 
 
