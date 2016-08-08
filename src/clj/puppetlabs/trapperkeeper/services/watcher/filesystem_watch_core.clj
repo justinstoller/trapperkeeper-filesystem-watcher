@@ -48,11 +48,6 @@
        :changed-path (.toFile (.context event))
        :full-path (.. watched-path (resolve (.context event)) (toFile))})))
 
-(schema/defn format-for-consumers
-  [{:keys [full-path type]} :- Event]
-  {:path full-path
-   :type type})
-
 (defn validate-watch-options!
   [options]
   (when-not (= true (:recursive options))
@@ -131,7 +126,7 @@
                 (trs "Events:")
                 (ks/pprint-to-string events))
     (doseq [callback callbacks]
-      (callback (map format-for-consumers events)))))
+      (callback events))))
 
 (schema/defn watch!
   "Creates a future and processes events for the passed in watcher.
