@@ -34,6 +34,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (schema/defn clojurize :- Event
+  "Takes the Java WatchEvent and the watchable Java Path that the event
+  occurred within and creates a Clojure map to represent the Event
+  throughout the system. The watched-path key is the registered watchable,
+  the changed-path the relative path to what changed, and the full path is
+  the absolute path to the changed event (watched-path + changed-path)."
   [event :- WatchEvent
    watched-path :- Path]
   (let [kind (get event-type-mappings (.kind event))
