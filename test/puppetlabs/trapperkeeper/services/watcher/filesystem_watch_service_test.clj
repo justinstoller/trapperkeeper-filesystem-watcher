@@ -11,7 +11,8 @@
             [puppetlabs.trapperkeeper.testutils.logging :refer [with-test-logging]]
             [puppetlabs.trapperkeeper.core :as tk]
             [puppetlabs.trapperkeeper.app :as tk-app]
-            [puppetlabs.trapperkeeper.internal :as tk-internal]))
+            [puppetlabs.trapperkeeper.internal :as tk-internal])
+  (:import (java.io File)))
 
 (use-fixtures :once schema-test/validate-schemas)
 
@@ -452,14 +453,44 @@
 ;; https://github.com/openjdk-mirror/jdk7u-jdk/blob/f4d80957e89a19a29bb9f9807d2a28351ed7f7df/src/share/classes/sun/nio/fs/AbstractWatchKey.java#L190-L222
 ;; We test only the OVERFLOW event because it is special case and will not be
 ;; triggered in the normal integration tests above.
-(deftest clojurize-overflows
+(deftest clojurize
   (testing "clojurize"
-    (let [watch-path (.toPath (fs/temp-dir "clojurize-overflows"))
-          overflow-event (reify
-                          java.nio.file.WatchEvent
-                          (kind [this] java.nio.file.StandardWatchEventKinds/OVERFLOW)
-                          (count [this] 1)
-                          (context [this] nil))
-          expected {:type :unknown :count 1 :watched-path (.toFile watch-path)}]
-      (testing "overflow events are handled normally"
-        (is (= expected (watch-core/clojurize overflow-event watch-path)))))))
+    (let [root-dir (fs/temp-dir "clojurize")]
+      (testing "format for normal events"
+        (let [watch-file (fs/file root-dir "normal")
+              watch-path (.toPath watch-file)
+              create-path (.toPath (File. "created.txt"))
+              modify-path (.toPath (File. "modified.txt"))
+              delete-path (.toPath (File. "deleted.txt"))
+              create-event (reify
+                             java.nio.file.WatchEvent
+                             (kind [this] java.nio.file.StandardWatchEventKinds/ENTRY_CREATE)
+                             (count [this] 1)
+                             (context [this] create-path))
+              modify-event (reify
+                             java.nio.file.WatchEvent
+                             (kind [this] java.nio.file.StandardWatchEventKinds/ENTRY_MODIFY)
+                             (count [this] 1)
+                             (context [this] modify-path))
+              delete-event (reify
+                             java.nio.file.WatchEvent
+                             (kind [this] java.nio.file.StandardWatchEventKinds/ENTRY_DELETE)
+                             (count [this] 1)
+                             (context [this] delete-path))
+              expected-base {:count 1 :watched-path watch-file}
+              expected-create (merge expected-base {:type :create :changed-path (fs/file (.resolve watch-path create-path ))})
+              expected-modify (merge expected-base {:type :modify :changed-path (fs/file (.resolve watch-path modify-path ))})
+              expected-delete (merge expected-base {:type :delete :changed-path (fs/file (.resolve watch-path delete-path ))})]
+          (is (= expected-create (watch-core/clojurize create-event watch-path)))
+          (is (= expected-modify (watch-core/clojurize modify-event watch-path)))
+          (is (= expected-delete (watch-core/clojurize delete-event watch-path)))))
+      (testing "overflow events do not have :changed-path"
+        (let [watch-path (.toPath (fs/file root-dir "overflows"))
+              overflow-event (reify
+                               java.nio.file.WatchEvent
+                               (kind [this] java.nio.file.StandardWatchEventKinds/OVERFLOW)
+                               (count [this] 1)
+                               (context [this] nil))
+              expected {:type :unknown :count 1 :watched-path (.toFile watch-path)}]
+
+          (is (= expected (watch-core/clojurize overflow-event watch-path))))))))
