@@ -101,21 +101,21 @@
   within `window-min`, or the `window-max` time limit has been exceeded."
   [watcher :- (schema/protocol Watcher)]
   (let [watch-key (.take (:watch-service watcher))
-        events (watch-key->events watch-key)
+        initial-events (watch-key->events watch-key)
         time-limit (+ (System/currentTimeMillis) window-max)]
-    (watch-new-directories! events watcher)
+    (watch-new-directories! initial-events watcher)
     (.reset watch-key)
-    (if-not (empty? events)
-      (loop [events' events]
+    (if-not (empty? initial-events)
+      (loop [events initial-events]
         (if-let [waiting-key (.poll (:watch-service watcher) window-min window-units)]
           (let [waiting-events (watch-key->events waiting-key)]
             (watch-new-directories! waiting-events watcher)
             (.reset waiting-key)
             (if (< (System/currentTimeMillis) time-limit)
-              (recur (concat events' waiting-events))
-              (concat events' waiting-events)))
-          events'))
-      events)))
+              (recur (concat events waiting-events))
+              (concat events waiting-events)))
+          events))
+      initial-events)))
 
 
 (schema/defn process-events!
