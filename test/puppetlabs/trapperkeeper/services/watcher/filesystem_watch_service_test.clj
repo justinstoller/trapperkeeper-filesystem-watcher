@@ -25,7 +25,7 @@
 
 (defn contains-events?
   ([dest events]
-   (let [select-keys-set (set (map #(select-keys % [:full-path :type]) @dest))]
+   (let [select-keys-set (set (map #(select-keys % [:changed-path :type]) @dest))]
      (set/subset? events select-keys-set))))
 
 (def wait-time
@@ -71,7 +71,7 @@
        (is (= @results [])))
      (testing "callback is invoked when a new file is created"
        (spit first-file "foo")
-       (let [events #{{:full-path first-file
+       (let [events #{{:changed-path first-file
                        :type :create}}]
          ;; This is the first of many weird assertions like this, but it's done
          ;; this way on purpose to get decent reporting from failed assertions.
@@ -80,23 +80,23 @@
      (testing "callback invoked again when another new file is created"
        (reset! results [])
        (spit second-file "bar")
-       (let [events #{{:full-path second-file
+       (let [events #{{:changed-path second-file
                        :type :create}}]
          (is (= events (wait-for-events results events)))))
      (testing "watch-dir! also reports file modifications"
        (testing "of a single file"
          (reset! results [])
          (spit first-file "something different")
-         (let [events #{{:full-path first-file
+         (let [events #{{:changed-path first-file
                   :type :modify}}]
            (is (= events (wait-for-events results events)))))
        (testing "of multiple files"
          (reset! results [])
          (spit first-file "still not the same as before")
          (spit second-file "still not the same as before")
-         (let [events #{{:full-path first-file
+         (let [events #{{:changed-path first-file
                          :type :modify}
-                        {:full-path second-file
+                        {:changed-path second-file
                          :type :modify}}]
            (is (= events (wait-for-events results events))))))
      (testing "watch-dir! also reports file deletions"
@@ -104,9 +104,9 @@
          (reset! results [])
          (is (fs/delete first-file))
          (is (fs/delete second-file))
-         (let [events #{{:full-path first-file
+         (let [events #{{:changed-path first-file
                          :type :delete}
-                        {:full-path second-file
+                        {:changed-path second-file
                          :type :delete}}]
            (is (= events (wait-for-events results events))))))
      (testing "re-creation of a deleted directory"
@@ -114,17 +114,17 @@
        (let [sub-dir (fs/file root "sub-dir")]
          (testing "Initial directory creation and deletion"
            (is (fs/mkdir sub-dir))
-           (let [events #{{:full-path sub-dir
+           (let [events #{{:changed-path sub-dir
                            :type :create}}]
              (is (= events (wait-for-events results events))))
            (is (fs/delete sub-dir))
-           (let [events #{{:full-path sub-dir
+           (let [events #{{:changed-path sub-dir
                            :type :delete}}]
              (is (= events (wait-for-events results events)))))
          (testing "Re-creating the directory fires an event as expected"
            (reset! results [])
            (is (fs/mkdir sub-dir))
-           (let [events #{{:full-path sub-dir
+           (let [events #{{:changed-path sub-dir
                            :type :create}}]
              (is (= events (wait-for-events results events))))))))))
 
@@ -144,7 +144,7 @@
        (watch! service root-2 callback-2))
      (testing "callback-1 is invoked when root-1 changes"
        (spit root-1-file "foo")
-       (let [events #{{:full-path root-1-file
+       (let [events #{{:changed-path root-1-file
                        :type :create}}]
          (is (= events (wait-for-events results-1 events))))
        (testing "but not callback-2"
@@ -152,7 +152,7 @@
      (testing "callback-2 is invoked when root-2 changes"
        (reset! results-1 [])
        (spit root-2-file "foo")
-       (let [events #{{:full-path root-2-file
+       (let [events #{{:changed-path root-2-file
                        :type :create}}]
          (is (= events (wait-for-events results-2 events))))
        (testing "but not callback-1"
@@ -162,9 +162,9 @@
        (reset! results-2 [])
        (spit root-1-file "bar")
        (spit root-2-file "bar")
-       (let [events-1 #{{:full-path root-1-file
+       (let [events-1 #{{:changed-path root-1-file
                          :type :modify}}
-             events-2 #{{:full-path root-2-file
+             events-2 #{{:changed-path root-2-file
                          :type :modify}}]
          (is (= events-1 (wait-for-events results-1 events-1)))
          (is (= events-2 (wait-for-events results-2 events-2))))))))
@@ -183,21 +183,21 @@
      (testing "file creation at root dir"
        (let [test-file (fs/file root-dir "foo")]
          (spit test-file "foo")
-         (let [events #{{:full-path test-file
+         (let [events #{{:changed-path test-file
                          :type :create}}]
            (is (= events (wait-for-events results events))))))
      (testing "file creation at one level down"
        (let [test-file (fs/file intermediate-dir "foo")]
          (reset! results [])
          (spit test-file "foo")
-         (let [events #{{:full-path test-file
+         (let [events #{{:changed-path test-file
                          :type :create}}]
            (is (= events (wait-for-events results events))))))
      (testing "file creation two levels down"
        (let [test-file (fs/file nested-dir "foo")]
          (reset! results [])
          (spit test-file "foo")
-         (let [events #{{:full-path test-file
+         (let [events #{{:changed-path test-file
                          :type :create}}]
            (is (= events (wait-for-events results events))))))
      (let [root-file (fs/file root-dir "bar")
@@ -208,29 +208,29 @@
          (spit root-file "bar")
          (spit nested-file "bar")
          (spit intermediate-file "bar")
-         (let [events #{{:full-path root-file
+         (let [events #{{:changed-path root-file
                          :type :create}
-                        {:full-path nested-file
+                        {:changed-path nested-file
                          :type :create}
-                        {:full-path intermediate-file
+                        {:changed-path intermediate-file
                          :type :create}}]
            (is (= events (wait-for-events results events)))))
        (testing "modifying a nested file"
          (reset! results [])
          (spit nested-file "something new")
-         (let [events #{{:full-path nested-file
+         (let [events #{{:changed-path nested-file
                          :type :modify}}]
            (is (= events (wait-for-events results events)))))
        (testing "deletion of a nested file"
          (reset! results [])
          (is (fs/delete nested-file))
-         (let [events #{{:full-path nested-file
+         (let [events #{{:changed-path nested-file
                          :type :delete}}]
            (is (= events (wait-for-events results events)))))
        (testing "burn it all down"
          (reset! results [])
          (is (fs/delete-dir intermediate-dir))
-         (let [events #{{:full-path intermediate-dir
+         (let [events #{{:changed-path intermediate-dir
                          :type :delete}}]
            (is (= events (wait-for-events results events)))))
        (let [another-nested-dir (fs/file root-dir "another-nested-dir")
@@ -239,19 +239,19 @@
            (testing "creation"
              (reset! results [])
              (is (fs/mkdir another-nested-dir))
-             (let [events #{{:full-path another-nested-dir
+             (let [events #{{:changed-path another-nested-dir
                              :type :create}}]
                (is (= events (wait-for-events results events)))))
            (testing "creation of a file within"
              (reset! results [])
              (spit new-nested-file "new nested file in nested dir")
-             (let [events #{{:full-path new-nested-file
+             (let [events #{{:changed-path new-nested-file
                              :type :create}}]
                (is (= events (wait-for-events results events)))))
            (testing "deletion"
              (reset! results [])
              (is (fs/delete-dir another-nested-dir))
-             (let [events #{{:full-path another-nested-dir
+             (let [events #{{:changed-path another-nested-dir
                              :type :delete}}]
                (is (= events (wait-for-events results events)))))))))))
 
@@ -272,22 +272,22 @@
        (add-callback! watcher callback)
        (testing "Events in dir-1"
          (spit test-file-1 "foo")
-         (let [events #{{:full-path test-file-1
+         (let [events #{{:changed-path test-file-1
                          :type :create}}]
            (is (= events (wait-for-events results events)))))
        (reset! results [])
        (testing "Events in dir-2"
          (spit test-file-2 "foo")
-         (let [events #{{:full-path test-file-2
+         (let [events #{{:changed-path test-file-2
                          :type :create}}]
            (is (= events (wait-for-events results events)))))
        (reset! results [])
        (testing "Events in both dirs"
          (spit test-file-1 "bar")
          (spit test-file-2 "bar")
-         (let [events #{{:full-path test-file-1
+         (let [events #{{:changed-path test-file-1
                          :type :modify}
-                        {:full-path test-file-2
+                        {:changed-path test-file-2
                          :type :modify}}]
            (is (= events (wait-for-events results events)))))
        (reset! results [])
@@ -305,9 +305,9 @@
            ;; https://tickets.puppetlabs.com/browse/TK-387 for more details.
            (Thread/sleep 100)
            (spit test-file-nested "foo")
-           (let [events #{{:full-path nested-dir
+           (let [events #{{:changed-path nested-dir
                            :type :create}
-                          {:full-path test-file-nested
+                          {:changed-path test-file-nested
                            :type :create}}]
              (is (= events (wait-for-events results events))))
            (reset! results [])
@@ -315,23 +315,23 @@
              (spit test-file-1 "baz")
              (spit test-file-2 "baz")
              (spit test-file-nested "baz")
-             (let [events #{{:full-path test-file-1
+             (let [events #{{:changed-path test-file-1
                              :type :modify}
-                            {:full-path test-file-2
+                            {:changed-path test-file-2
                              :type :modify}
-                            {:full-path test-file-nested
+                            {:changed-path test-file-nested
                              :type :modify}}]
                (is (= events (wait-for-events results events)))))
            (reset! results [])
            (testing "Deletion thereof"
              (is (fs/delete-dir nested-dir))
-             (let [events #{{:full-path nested-dir
+             (let [events #{{:changed-path nested-dir
                              :type :delete}}]
                (is (= events (wait-for-events results events))))
              (reset! results [])
              (testing "Leaves the parent watched dir unaffected"
                (spit test-file-1 "bamboozle")
-               (let [events #{{:full-path test-file-1
+               (let [events #{{:changed-path test-file-1
                                :type :modify}}]
                  (is (= events (wait-for-events results events))))))))))))
 
@@ -356,9 +356,9 @@
          (testing "Events do not bleed over between watchers"
            (spit test-file-1 "foo")
            (spit test-file-2 "foo")
-           (let [events-1 #{{:full-path test-file-1
+           (let [events-1 #{{:changed-path test-file-1
                              :type :create}}
-                 events-2 #{{:full-path test-file-2
+                 events-2 #{{:changed-path test-file-2
                              :type :create}}]
              (is (= events-1 (wait-for-events results-1 events-1)))
              (is (= events-2 (wait-for-events results-2 events-2))))))
@@ -373,9 +373,9 @@
            (watch!* watcher-3 dir-1 callback-3)
            (spit test-file-1 "bar")
            (spit test-file-2 "bar")
-           (let [events-1 #{{:full-path test-file-1
+           (let [events-1 #{{:changed-path test-file-1
                              :type :modify}}
-                 events-2 #{{:full-path test-file-2
+                 events-2 #{{:changed-path test-file-2
                              :type :modify}}]
              (is (= events-1 (wait-for-events results-1 events-1)))
              (is (= events-1 (wait-for-events results-3 events-1)))
@@ -418,7 +418,7 @@
         (let [test-dir (fs/file root-dir "window-min")
               event-nums (quot (quot watch-core/window-max watch-core/window-min) 2)
               files (map #(fs/file test-dir (str % ".txt")) (range 0 event-nums))
-              expected-events (set (map (fn [f] {:full-path f :type :create}) files))]
+              expected-events (set (map (fn [f] {:changed-path f :type :create}) files))]
           (is (> event-nums 1))
           (is (fs/mkdirs test-dir))
           (watch! svc test-dir callback)
@@ -435,7 +435,7 @@
         (let [test-dir (fs/file root-dir "window-max")
               event-nums (* (quot watch-core/window-max watch-core/window-min) 4)
               files (map #(fs/file test-dir (str % ".txt")) (range 0 event-nums))
-              expected-events (set (map (fn [f] {:full-path f :type :create}) files))]
+              expected-events (set (map (fn [f] {:changed-path f :type :create}) files))]
           (is (>= event-nums 4))
           (is (fs/mkdirs test-dir))
           (watch! svc test-dir callback)

@@ -50,8 +50,7 @@
       {:type kind
        :count count
        :watched-path (.toFile watched-path)
-       :changed-path (.toFile (.context event))
-       :full-path (.. watched-path (resolve (.context event)) (toFile))})))
+       :changed-path (.. watched-path (resolve (.context event)) (toFile))})))
 
 (defn validate-watch-options!
   [options]
@@ -83,11 +82,11 @@
    watcher :- (schema/protocol Watcher)]
   (let [dir-create? (fn [event]
                       (and (= :create (:type event))
-                           (fs/directory? (:full-path event))))]
+                           (fs/directory? (:changed-path event))))]
     (DirWatchUtils/registerRecursive (:watch-service watcher)
                                      (->> events
                                           (filter dir-create?)
-                                          (map #(.toPath (:full-path %)))))))
+                                          (map #(.toPath (:changed-path %)))))))
 
 (schema/defn watch-key->events :- [Event]
   [watch-key :- WatchKey]
